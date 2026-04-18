@@ -387,6 +387,15 @@ function detectAnomalies(fields, text) {
         action:'Verify this invoice has not already been paid.'});
   }
 
+  // Check from Hindsight vendor history
+  if (fields._vendorDisputeCount && fields._vendorDisputeCount > 2) {
+    a.push({
+      type: 'HINDSIGHT_VENDOR_RISK', severity: 'HIGH',
+      detail: 'Hindsight memory shows ' + fields._vendorDisputeCount + ' past disputes for ' + fields.vendor + ' out of ' + fields._vendorMemoryCount + ' total records.',
+      action: 'HOLD — Vendor has high dispute history. Extra scrutiny required.'
+    });
+  }
+
   return a;
 }
 
