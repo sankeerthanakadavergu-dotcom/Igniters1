@@ -221,6 +221,63 @@ async function readPDF(file) {
 }
 
 function extractFields(text) {
+  // Better PO detection — handles "PO Number:", "PO#", "PO:", "PO-XXXX" formats
+  let po = null;
+  const poPatterns = [
+    /PO\s*Number[:\s]+([\w\-]+)/i,
+    /PO\s*#[:\s]*([\w\-]+)/i,
+    /PO[:\s]+([\w\-]+)/i,
+    /(PO-[\w\-]+)/i,
+  ];
+  for (const p of poPatterns) {
+    const m = text.match(p);
+    if (m && m[1] && m[1].length > 2) { po = m[1]; break; }
+  }
+
+  // Better total detection
+  let total = 0;
+  const totalPatterns = [
+    /TOTAL[:\s]*\$?([\d,]+\.?\d*)/i,
+    /TOTAL DUE[:\s]*\$?([\d,]+\.?\d*)/i,
+    /AMOUNT DUE[:\s]*\$?([\d,]+\.?\d*)/i,
+  ];
+  for (const p of totalPatterns) {
+    const m = text.match(p);
+    if (m) { total = parseFloat(m[1].replace(/,/g,"")); break; }
+  }
+
+  // Better vendor detection
+  let vendor = "Unknown Vendor";
+  const vendorPatterns = [
+    /From[:\s]+([A-Za-z][\w\s]+?)(?:\n|\d|,)/i,
+    /Vendor[:\s]+([A-Za-z][\w\s]+?)(?:\n|\d)/i,
+  ];
+  for (const p of vendorPatterns) {
+    const m = text.match(p);
+    if (m) { vendor = m[1].trim(); break; }
+  }
+
+  // Invoice number
+  let inv = "INV-UNKNOWN";
+  const invM = text.match(/Invoice\s*#[:\s]*([\w\-]+)/i);
+  if (invM) inv = invM[1];
+
+  // Tax rate
+  let taxRate = 8;
+  const taxM = text.match(/Tax[:\s]*(\d+)%/i);
+  if (taxM) taxRate = parseInt(taxM[1]);
+
+  // Subtotal
+  let subtotal = total;
+  const subM = text.match(/Subtotal[:\s]*\$?([\d,]+\.?\d*)/i);
+  if (subM) subtotal = parseFloat(subM[1].replace(/,/g,""));
+
+  // Check for double charge keywords
+  const hasDoubleCharge = /double|duplicate charge|billed twice|charged twice|overcharge/i.test(text);
+
+  return { vendor, invoice_number: inv, total, po_number: po,
+           tax_rate: taxRate, subtotal, hasDoubleCharge };
+}
   return {
     vendor: detectVendorFromText(text),
     invoice_number: "INV-" + Math.random().toString(36).substr(2,6).toUpperCase(),
@@ -236,6 +293,45 @@ function detectVendorFromText(text) {
 }
 
 function detectAnomalies(fields) {
+  const anomalies = [];
+
+  // Check 1 — Missing PO
+  if (!fields.po_number) {
+    anomalies.push({type: "MISSING_PO", severity: "MEDIUM",
+      detail: "No Purchase Order number found on invoice.",
+      action: "Request PO number from vendor before processing."});
+  }
+
+  // Check 2 — Double overcharge keyword detected
+  if (fields.hasDoubleCharge) {
+    anomalies.push({type: "DOUBLE_OVERCHARGE", severity: "HIGH",
+      detail: "Invoice contains a double charge or overcharge indicator. Vendor may have billed twice for the same service.",
+      action: "REJECT — Do not pay. Request corrected invoice from vendor."});
+  }
+
+  // Check 3 — High tax rate
+  if (fields.tax_rate > 12) {
+    anomalies.push({type: "TAX_ANOMALY", severity: "MEDIUM",
+      detail: `Tax rate is ${fields.tax_rate}% — above standard 8-10%.`,
+      action: "Verify tax rate with vendor."});
+  }
+
+  // Check 4 — Round number fraud
+  if (fields.total > 1000 && fields.total % 500 === 0) {
+    anomalies.push({type: "ROUND_NUMBER_FLAG", severity: "LOW",
+      detail: `Invoice total $${fields.total.toLocaleString()} is a suspiciously round number.`,
+      action: "Verify all line items add up correctly."});
+  }
+
+  // Check 5 — Amount overcharge above 5000
+  if (fields.total > 5000) {
+    anomalies.push({type: "HIGH_VALUE_INVOICE", severity: "MEDIUM",
+      detail: `Invoice total $${fields.total.toLocaleString()} exceeds $5,000 threshold. Requires senior approval.`,
+      action: "Escalate to senior AP manager for approval."});
+  }
+
+  return anomalies;
+}
   const anomalies = [];
 
   if (!fields.po_number) {
