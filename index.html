@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AP Intelligence Agent</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: sans-serif; background:#f0f2f5; }
+header { background:#1a1a2e; color:white; padding:20px 32px; }
+header h1 { font-size:22px; }
+header p { font-size:13px; opacity:0.6; margin-top:4px; }
+.cards { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; padding:24px 32px; }
+.card { background:white; border-radius:12px; padding:20px; }
+.card .n { font-size:32px; font-weight:700; }
+.card .l { font-size:12px; color:#666; margin-top:4px; }
+.c1{border-left:4px solid #22c55e;} .c2{border-left:4px solid #f59e0b;}
+.c3{border-left:4px solid #f97316;} .c4{border-left:4px solid #ef4444;}
+.filters { padding:0 32px 12px; display:flex; gap:8px; }
+.btn { padding:7px 16px; border:none; border-radius:20px; cursor:pointer; font-size:13px; }
+.btn.active { background:#1a1a2e; color:white; }
+.btn:not(.active) { background:white; color:#333; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+.search { padding:0 32px 12px; }
+.search input { width:100%; padding:9px 14px; border:1px solid #ddd; border-radius:8px; font-size:13px; }
+.wrap { padding:0 32px 32px; }
+table { width:100%; background:white; border-radius:12px; border-collapse:collapse; box-shadow:0 2px 6px rgba(0,0,0,0.07); }
+th { background:#1a1a2e; color:white; padding:12px 14px; text-align:left; font-size:12px; }
+td { padding:12px 14px; font-size:12px; border-bottom:1px solid #f0f0f0; }
+.badge { padding:3px 9px; border-radius:10px; font-size:11px; font-weight:600; }
+.ba{background:#dcfce7;color:#166534;} .bn{background:#fef9c3;color:#854d0e;}
+.bh{background:#ffedd5;color:#9a3412;} .br{background:#fee2e2;color:#991b1b;}
+.rh{background:#fee2e2;color:#991b1b;} .rm{background:#ffedd5;color:#9a3412;} .rl{background:#dcfce7;color:#166534;}
+.ebtn { padding:4px 10px; background:#1a1a2e; color:white; border:none; border-radius:5px; cursor:pointer; font-size:11px; }
+.modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:99; align-items:center; justify-content:center; }
+.modal.open { display:flex; }
+.mbox { background:white; border-radius:12px; padding:24px; max-width:520px; width:90%; max-height:80vh; overflow-y:auto; }
+.mbox pre { background:#f5f5f5; padding:14px; border-radius:8px; font-size:11px; white-space:pre-wrap; line-height:1.6; margin-top:12px; }
+.cbtn { margin-top:12px; padding:7px 18px; background:#ef4444; color:white; border:none; border-radius:6px; cursor:pointer; }
+</style>
+</head>
+<body>
+<header>
+  <h1>AP Intelligence Agent Dashboard</h1>
+  <p>Hindsight Memory — 30 invoices processed with edge case detection</p>
+</header>
+<div class="cards">
+  <div class="card c1"><div class="n" id="ca">0</div><div class="l">✅ Approved</div></div>
+  <div class="card c2"><div class="n" id="cn">0</div><div class="l">⚠️ Approved with Note</div></div>
+  <div class="card c3"><div class="n" id="ch">0</div><div class="l">🔶 Hold for Review</div></div>
+  <div class="card c4"><div class="n" id="cr">0</div><div class="l">❌ Rejected</div></div>
+</div>
+<div class="search"><input id="sb" placeholder="Search vendor, invoice, status..." oninput="ft()"></div>
+<div class="filters">
+  <button class="btn active" onclick="sf('ALL',this)">All</button>
+  <button class="btn" onclick="sf('APPROVED',this)">Approved</button>
+  <button class="btn" onclick="sf('APPROVED WITH NOTE',this)">With Note</button>
+  <button class="btn" onclick="sf('HOLD FOR REVIEW',this)">Hold</button>
+  <button class="btn" onclick="sf('REJECTED',this)">Rejected</button>
+</div>
+<div class="wrap">
+  <table>
+    <thead><tr><th>#</th><th>File</th><th>Vendor</th><th>Invoice</th><th>Total</th><th>Status</th><th>Risk</th><th>Anomalies</th><th>Action</th></tr></thead>
+    <tbody id="tb"></tbody>
+  </table>
+</div>
+<div class="modal" id="em">
+  <div class="mbox">
+    <h3>Draft Dispute Email</h3>
+    <pre id="ec"></pre>
+    <button class="cbtn" onclick="cm()">Close</button>
+  </div>
+</div>
+<script>
+let data=[],cf="ALL";
+const bc={"APPROVED":"ba","APPROVED WITH NOTE":"bn","HOLD FOR REVIEW":"bh","REJECTED":"br","HIGH":"rh","MEDIUM":"rm","LOW":"rl"};
+async function load(){
+  try{
+    const r=await fetch("../backend/ap_results.json");
+    data=await r.json();
+    document.getElementById("ca").textContent=data.filter(d=>d.status==="APPROVED").length;
+    document.getElementById("cn").textContent=data.filter(d=>d.status==="APPROVED WITH NOTE").length;
+    document.getElementById("ch").textContent=data.filter(d=>d.status==="HOLD FOR REVIEW").length;
+    document.getElementById("cr").textContent=data.filter(d=>d.status==="REJECTED").length;
+    render(data);
+  }catch(e){
+    document.getElementById("tb").innerHTML='<tr><td colspan="9" style="text-align:center;padding:30px;color:#999">Loading... ensure ap_results.json exists in backend/ folder</td></tr>';
+  }
+}
+function render(d){
+  const tb=document.getElementById("tb");
+  if(!d.length){tb.innerHTML='<tr><td colspan="9" style="text-align:center;padding:30px;color:#999">No results</td></tr>';return;}
+  tb.innerHTML=d.map((r,i)=>`<tr>
+    <td>${i+1}</td><td>${r.file}</td>
+    <td><strong>${r.vendor}</strong></td>
+    <td>${r.invoice_number}</td>
+    <td><strong>$${Number(r.total).toLocaleString("en-US",{minimumFractionDigits:2})}</strong></td>
+    <td><span class="badge ${bc[r.status]}">${r.status}</span></td>
+    <td><span class="badge ${bc[r.risk]}">${r.risk}</span></td>
+    <td>${r.anomaly_count} — ${(r.anomaly_types||[]).join(", ")||"None"}</td>
+    <td>${r.draft_email?`<button class="ebtn" onclick="se(${i})">View Draft</button>`:r.action}</td>
+  </tr>`).join("");
+}
+function sf(s,b){cf=s;document.querySelectorAll(".btn").forEach(x=>x.classList.remove("active"));b.classList.add("active");ft();}
+function ft(){
+  const q=document.getElementById("sb").value.toLowerCase();
+  let f=data;
+  if(cf!=="ALL") f=f.filter(d=>d.status===cf);
+  if(q) f=f.filter(d=>(d.vendor||"").toLowerCase().includes(q)||(d.invoice_number||"").toLowerCase().includes(q)||(d.file||"").toLowerCase().includes(q));
+  render(f);
+}
+function se(i){document.getElementById("ec").textContent=data[i].draft_email||"No email draft.";document.getElementById("em").classList.add("open");}
+function cm(){document.getElementById("em").classList.remove("open");}
+load();
+</script>
+</body>
+</html>
