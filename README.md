@@ -1,26 +1,18 @@
-# Igniters1 — AP Intelligence Agent
+# AP Intelligence Agent
 
-## Live Agent
-Run in Google Colab using backend/ap_agent_final.py
-
-## Edge Cases Detected
-1. Missing PO Number
-2. Double Overcharge
-3. Tax Rate Anomaly above 12%
-4. Round Number Fraud
-5. High Value Invoice above 5000
-6. Short Payment Terms
-7. Vague Line Items
-8. Possible Duplicate Invoice
-
-## How to Run
-1. pip install gradio pdfplumber
-2. python backend/ap_agent_final.py
-3. Open the gradio link
-4. Upload any invoice PDF
+An intelligent Accounts Payable agent that learns vendor patterns.
 
 ## Tech Stack
-- pdfplumber for PDF reading
-- Hindsight for vendor memory
-- Gradio for UI
-- GitHub Pages for dashboard
+- Google ADK — CascadeFlow 5-step agent pipeline
+- Hindsight — Persistent vendor memory
+- Groq — LLM inference
+- FastAPI — Backend API
+- Streamlit — Frontend UI
+
+## How it works
+1. Upload any invoice PDF
+2. Agent checks Hindsight memory for vendor history
+3. Validates amounts against historical averages
+4. Decides: CLEAN / DISPUTED / NEEDS REVIEW
+5. Approves payment or drafts dispute email
+6. Saves outcome to memory for next time
