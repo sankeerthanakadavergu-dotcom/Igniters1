@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AP Intelligence Agent</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:sans-serif; background:#f0f2f5; }
+header { background:#1a1a2e; color:white; padding:20px 32px; }
+header h1 { font-size:22px; }
+header p  { font-size:13px; opacity:0.6; margin-top:4px; }
+.tabs { display:flex; background:#1a1a2e; padding:0 32px; }
+.tab  { padding:12px 24px; cursor:pointer; font-size:13px; color:rgba(255,255,255,0.6); border-bottom:3px solid transparent; }
+.tab.active { color:white; border-bottom:3px solid #22c55e; }
+.section { display:none; padding:24px 32px; }
+.section.active { display:block; }
+.upload-box { background:white; border-radius:12px; padding:32px; box-shadow:0 2px 8px rgba(0,0,0,0.07); }
+.drop-zone  { border:2px dashed #ddd; border-radius:12px; padding:48px; text-align:center; cursor:pointer; }
+.drop-zone:hover { border-color:#1a1a2e; background:#f8f9ff; }
+.drop-zone h3 { font-size:18px; color:#333; margin-bottom:8px; }
+.drop-zone p  { font-size:13px; color:#999; }
+.choose-btn { margin-top:16px; padding:12px 28px; background:#1a1a2e; color:white; border:none; border-radius:8px; cursor:pointer; font-size:14px; }
+.processing { display:none; padding:24px; text-align:center; }
+.steps-list { display:flex; flex-direction:column; gap:8px; max-width:400px; margin:16px auto; text-align:left; }
+.step-item  { padding:10px 14px; border-radius:8px; font-size:13px; background:#f5f5f5; color:#999; }
+.step-item.done   { background:#dcfce7; color:#166534; }
+.step-item.active { background:#e0f2fe; color:#0369a1; }
+.result-box { display:none; margin-top:20px; border-radius:12px; padding:24px; }
+.result-box.approved { background:#dcfce7; border:1px solid #86efac; }
+.result-box.hold     { background:#ffedd5; border:1px solid #fdba74; }
+.result-box.rejected { background:#fee2e2; border:1px solid #fca5a5; }
+.result-title { font-size:22px; font-weight:700; margin-bottom:16px; }
+.detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
+.detail-card { background:rgba(255,255,255,0.8); border-radius:8px; padding:10px 14px; }
+.detail-label { font-size:11px; color:#666; margin-bottom:4px; }
+.detail-value { font-size:14px; font-weight:600; }
+.anomaly-item { padding:10px 14px; border-radius:8px; margin-bottom:8px; font-size:13px; }
+.anomaly-item.HIGH   { background:#fee2e2; color:#991b1b; }
+.anomaly-item.MEDIUM { background:#ffedd5; color:#9a3412; }
+.anomaly-item.LOW    { background:#fef9c3; color:#854d0e; }
+.email-box  { background:white; border-radius:8px; padding:16px; font-size:12px; white-space:pre-wrap; line-height:1.6; border:1px solid #ddd; margin:12px 0; font-family:monospace; max-height:200px; overflow-y:auto; }
+.action-row { display:flex; gap:10px; margin-top:12px; }
+.action-btn { padding:12px 24px; border:none; border-radius:8px; cursor:pointer; font-size:14px; font-weight:600; }
+.btn-approve { background:#22c55e; color:white; }
+.btn-dispute { background:#ef4444; color:white; }
+.btn-reset   { background:#6b7280; color:white; }
+.success-msg { background:#dcfce7; color:#166534; padding:12px 16px; border-radius:8px; margin-top:12px; font-weight:600; }
+.raw-text { background:#f5f5f5; padding:12px; border-radius:8px; font-size:11px; font-family:monospace; white-space:pre-wrap; max-height:150px; overflow-y:auto; margin-top:12px; }
+.cards { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
+.card  { background:white; border-radius:12px; padding:20px; box-shadow:0 2px 6px rgba(0,0,0,0.07); }
+.card .n { font-size:32px; font-weight:700; }
+.card .l { font-size:12px; color:#666; margin-top:4px; }
+.c1{border-left:4px solid #22c55e;} .c2{border-left:4px solid #f59e0b;}
+.c3{border-left:4px solid #f97316;} .c4{border-left:4px solid #ef4444;}
+table { width:100%; background:white; border-radius:12px; border-collapse:collapse; box-shadow:0 2px 6px rgba(0,0,0,0.07); }
+th { background:#1a1a2e; color:white; padding:12px 14px; text-align:left; font-size:12px; }
+td { padding:12px 14px; font-size:12px; border-bottom:1px solid #f0f0f0; }
+.badge { padding:3px 9px; border-radius:10px; font-size:11px; font-weight:600; }
+.ba{background:#dcfce7;color:#166534;} .bn{background:#fef9c3;color:#854d0e;}
+.bh{background:#ffedd5;color:#9a3412;} .br{background:#fee2e2;color:#991b1b;}
+.rh{background:#fee2e2;color:#991b1b;} .rm{background:#ffedd5;color:#9a3412;} .rl{background:#dcfce7;color:#166534;}
+.ebtn { padding:4px 10px; background:#1a1a2e; color:white; border:none; border-radius:5px; cursor:pointer; font-size:11px; }
+.modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:99; align-items:center; justify-content:center; }
+.modal.open { display:flex; }
+.mbox { background:white; border-radius:12px; padding:24px; max-width:520px; width:90%; max-height:80vh; overflow-y:auto; }
+.mbox pre { background:#f5f5f5; padding:14px; border-radius:8px; font-size:11px; white-space:pre-wrap; line-height:1.6; margin-top:12px; }
+.cbtn { margin-top:12px; padding:7px 18px; background:#ef4444; color:white; border:none; border-radius:6px; cursor:pointer; }
+</style>
+</head>
+<body>
+<header>
+  <h1>AP Intelligence Agent</h1>
+  <p>Upload any invoice PDF — reads in browser, detects fraud, decides automatically</p>
+</header>
+<div class="tabs">
+  <div class="tab active" onclick="showTab('upload',this)">Upload New Invoice</div>
+  <div class="tab" onclick="showTab('dashboard',this)">All Results Dashboard</div>
+</div>
+
+<div class="section active" id="upload">
+  <div class="upload-box">
+    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <h3>Upload Any Invoice PDF</h3>
+      <p>Click to browse or drag and drop your invoice here</p>
+      <p style="font-size:12px;color:#bbb;margin-top:6px;">Supports any vendor — detects 8 edge cases automatically</p>
+      <button class="choose-btn">Choose Invoice PDF</button>
+    </div>
+    <input type="file" id="fileInput" accept=".pdf" style="display:none" onchange="handleFile(this.files[0])">
+
+    <div class="processing" id="processing">
+      <h3 style="margin-bottom:16px;">Processing Invoice...</h3>
+      <div class="steps-list">
+        <div class="step-item" id="s1">Step 1: Reading PDF text</div>
+        <div class="step-item" id="s2">Step 2: Extracting invoice fields</div>
+        <div class="step-item" id="s3">Step 3: Running 8 edge case checks</div>
+        <div class="step-item" id="s4">Step 4: Making final decision</div>
+        <div class="step-item" id="s5">Step 5: Generating email draft</div>
+      </div>
+    </div>
+
+    <div class="result-box" id="resultBox">
+      <div class="result-title" id="resultTitle"></div>
+      <div class="detail-grid">
+        <div class="detail-card"><div class="detail-label">Vendor</div><div class="detail-value" id="dVendor"></div></div>
+        <div class="detail-card"><div class="detail-label">Invoice Number</div><div class="detail-value" id="dInv"></div></div>
+        <div class="detail-card"><div class="detail-label">Total Amount</div><div class="detail-value" id="dTotal"></div></div>
+        <div class="detail-card"><div class="detail-label">PO Number</div><div class="detail-value" id="dPO"></div></div>
+        <div class="detail-card"><div class="detail-label">Issue Date</div><div class="detail-value" id="dIssue"></div></div>
+        <div class="detail-card"><div class="detail-label">Due Date</div><div class="detail-value" id="dDue"></div></div>
+        <div class="detail-card"><div class="detail-label">Tax Amount</div><div class="detail-value" id="dTax"></div></div>
+        <div class="detail-card"><div class="detail-label">Risk Level</div><div class="detail-value" id="dRisk"></div></div>
+      </div>
+      <div style="margin-bottom:8px;font-weight:600;font-size:14px;">Anomalies Detected:</div>
+      <div id="anomalyList"></div>
+      <div id="emailSection" style="display:none">
+        <div style="font-weight:600;font-size:14px;margin-top:12px;margin-bottom:8px;">Draft Email:</div>
+        <div class="email-box" id="emailContent"></div>
+      </div>
+      <div class="action-row" id="actionRow"></div>
+      <div id="successMsg"></div>
+      <details style="margin-top:16px;">
+        <summary style="cursor:pointer;font-size:12px;color:#666;">Show extracted text (debug)</summary>
+        <div class="raw-text" id="rawText"></div>
+      </details>
+    </div>
+  </div>
+</div>
+
+<div class="section" id="dashboard">
+  <div class="cards">
+    <div class="card c1"><div class="n" id="ca">0</div><div class="l">Approved</div></div>
+    <div class="card c2"><div class="n" id="cn">0</div><div class="l">Approved with Note</div></div>
+    <div class="card c3"><div class="n" id="ch">0</div><div class="l">Hold for Review</div></div>
+    <div class="card c4"><div class="n" id="cr">0</div><div class="l">Rejected</div></div>
+  </div>
+  <table>
+    <thead><tr><th>#</th><th>File</th><th>Vendor</th><th>Invoice</th><th>Total</th><th>Status</th><th>Risk</th><th>Anomalies</th><th>Email</th></tr></thead>
+    <tbody id="tb"></tbody>
+  </table>
+</div>
+
+<div class="modal" id="em">
+  <div class="mbox">
+    <h3>Draft Dispute Email</h3>
+    <pre id="ec"></pre>
+    <button class="cbtn" onclick="document.getElementById('em').classList.remove('open')">Close</button>
+  </div>
+</div>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+let dashData = [];
+
+function showTab(tab, el) {
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(tab).classList.add('active');
+  el.classList.add('active');
+  if (tab==='dashboard') loadDashboard();
+}
+
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', e=>{e.preventDefault(); dz.style.borderColor='#1a1a2e';});
+dz.addEventListener('dragleave', ()=>{dz.style.borderColor='#ddd';});
+dz.addEventListener('drop', e=>{e.preventDefault(); dz.style.borderColor='#ddd'; if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);});
+
+async function handleFile(file) {
+  if (!file || !file.name.endsWith('.pdf')) { alert('Please upload a PDF file'); return; }
+  document.getElementById('dropZone').style.display = 'none';
+  document.getElementById('processing').style.display = 'block';
+  document.getElementById('resultBox').style.display = 'none';
+  document.getElementById('successMsg').innerHTML = '';
+  ['s1','s2','s3','s4','s5'].forEach(s=>document.getElementById(s).className='step-item');
+
+  await animateStep('s1');
+
+  // Read PDF using PDF.js — extract text line by line
+  let lines = [];
+  try {
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data:buf}).promise;
+    for (let i=1; i<=pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      // Group items by Y position to reconstruct lines
+      const byY = {};
+      content.items.forEach(item => {
+        const y = Math.round(item.transform[5]);
+        if (!byY[y]) byY[y] = [];
+        byY[y].push(item.str);
+      });
+      // Sort by Y descending (top to bottom)
+      Object.keys(byY).sort((a,b)=>b-a).forEach(y => {
+        const line = byY[y].join(' ').trim();
+        if (line) lines.push(line);
+      });
+    }
+  } catch(e) {
+    alert('Error reading PDF: ' + e.message);
+    resetUpload();
+    return;
+  }
+
+  const fullText = lines.join('\n');
+  document.getElementById('rawText').textContent = fullText.substring(0,800);
+
+  await animateStep('s2');
+  const fields = extractFields(lines, fullText);
+
+  await animateStep('s3');
+  const anomalies = detectAnomalies(fields, fullText);
+
+  await animateStep('s4');
+  const decision = makeDecision(anomalies);
+
+  await animateStep('s5');
+  const email = generateEmail(fields, anomalies, decision.status);
+
+  showResult(fields, anomalies, decision, email);
+}
+
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+async function animateStep(id) {
+  const prev={s1:null,s2:'s1',s3:'s2',s4:'s3',s5:'s4'}[id];
+  if(prev) document.getElementById(prev).className='step-item done';
+  document.getElementById(id).className='step-item active';
+  await sleep(500);
+}
+
+function extractFields(lines, fullText) {
+  // Find INVOICE line and get vendor from NEXT meaningful line
+  let vendor = null;
+  for (let i=0; i<lines.length; i++) {
+    const line = lines[i].trim();
+    // Look for line that contains INVOICE keyword
+    if (/^INVOICE$/i.test(line) || /^INVOICE\s+Invoice/i.test(line)) {
+      // Next non-empty line after INVOICE is vendor
+      for (let j=i+1; j<Math.min(i+5,lines.length); j++) {
+        const next = lines[j].trim();
+        // Skip lines that look like invoice numbers or dates
+        if (next && !/^Invoice\s*#/i.test(next) && !/^\d{4}-\d{2}/.test(next) && next.length > 2 && next.length < 60) {
+          // Extract just first part before any date or extra info
+          vendor = next.split(/\s{2,}|	/)[0].trim();
+          break;
+        }
+      }
+      break;
+    }
+  }
+
+  // Alternative vendor detection from "From:" pattern
+  if (!vendor) {
+    const m = fullText.match(/(?:^|
+)([A-Z][a-zA-Z\s&\.,']+(?:Co\.|Corp\.|Ltd\.|Inc\.|LLC|Services|Supplies|Logistics|Trading)?)\s*
+/m);
+    if (m) vendor = m[1].trim();
+  }
+
+  // Invoice number
+  let inv = null;
+  const invM = fullText.match(/Invoice\s*#[:\s]*(INV-[\w\-]+)/i) ||
+               fullText.match(/Invoice\s*#[:\s]*([\w\-]+)/i);
+  if (invM) inv = invM[1].trim();
+
+  // Total — look for TOTAL DUE or TOTAL at end of line
+  let total = 0;
+  const totPatterns = [
+    /TOTAL\s+DUE[:\s]*\$?([\d,]+\.?\d*)/i,
+    /TOTAL[:\s]+\$?([\d,]+\.?\d*)/i,
+    /Amount\s+Due[:\s]*\$?([\d,]+\.?\d*)/i,
+  ];
+  for (const p of totPatterns) {
+    const m = fullText.match(p);
+    if (m) { total = parseFloat(m[1].replace(/,/g,'')); break; }
+  }
+
+  // PO Number
+  let po = null;
+  const poPatterns = [
+    /PO\s+Number[:\s]*([\w\-]+)/i,
+    /PO\s*#[:\s]*([\w\-]+)/i,
+    /(PO-[\w\-]+)/i,
+    /Purchase\s+Order[:\s]*([\w\-]+)/i,
+  ];
+  for (const p of poPatterns) {
+    const m = fullText.match(p);
+    if (m && m[1].length > 2 && m[1].length < 20) { po = m[1].trim(); break; }
+  }
+
+  // Tax
+  let tax = 0;
+  const taxM = fullText.match(/Tax\s*\(?[\d%]*\)?[:\s]*\$?([\d,]+\.?\d*)/i);
+  if (taxM) tax = parseFloat(taxM[1].replace(/,/g,''));
+
+  // Subtotal
+  let subtotal = total;
+  const subM = fullText.match(/Subtotal[:\s]*\$?([\d,]+\.?\d*)/i);
+  if (subM) subtotal = parseFloat(subM[1].replace(/,/g,''));
+
+  // Dates — only take the first 10 chars to avoid capturing extra text
+  let issueDate = 'N/A', dueDate = 'N/A';
+  const issuM = fullText.match(/Issue\s+Date[:\s]*([\d]{4}-[\d]{2}-[\d]{2})/i) ||
+                fullText.match(/Date[:\s]*([\d]{4}-[\d]{2}-[\d]{2})/i);
+  if (issuM) issueDate = issuM[1];
+
+  const dueM = fullText.match(/Due\s+Date[:\s]*([\d]{4}-[\d]{2}-[\d]{2})/i);
+  if (dueM) dueDate = dueM[1];
+
+  // Payment terms
+  let terms = 'N/A';
+  const termM = fullText.match(/Terms[:\s]*(Net\s*\d+|Net-\d+)/i);
+  if (termM) terms = termM[1];
+
+  return {
+    vendor: vendor || 'Unknown Vendor',
+    invoice_number: inv || 'INV-UNKNOWN',
+    total, po_number: po, tax, subtotal,
+    issue_date: issueDate, due_date: dueDate, terms
+  };
+}
+
+function detectAnomalies(fields, text) {
+  const a = [];
+  const t = text.toLowerCase();
+
+  // Check 1 — Missing PO
+  if (!fields.po_number)
+    a.push({type:'MISSING_PO', severity:'MEDIUM',
+      detail:'No Purchase Order number found on invoice.',
+      action:'Request PO number from vendor before processing.'});
+
+  // Check 2 — Double overcharge
+  for (const kw of ['double overcharge','double charge','duplicate charge','billed twice','overcharge'])
+    if (t.includes(kw)) {
+      a.push({type:'DOUBLE_OVERCHARGE', severity:'HIGH',
+        detail:'Keyword "'+kw+'" found — possible double billing.',
+        action:'REJECT — Block payment. Request corrected invoice.'});
+      break;
+    }
+
+  // Check 3 — Tax anomaly
+  if (fields.subtotal > 0 && fields.tax > 0) {
+    const rate = (fields.tax / fields.subtotal) * 100;
+    if (rate > 12)
+      a.push({type:'TAX_ANOMALY', severity:'MEDIUM',
+        detail:'Tax rate '+rate.toFixed(1)+'% is above standard 8-10%.',
+        action:'Verify correct tax rate with vendor.'});
+  }
+
+  // Check 4 — Round number fraud
+  if (fields.total > 1000 && fields.total % 500 === 0)
+    a.push({type:'ROUND_NUMBER_FLAG', severity:'LOW',
+      detail:'Total $'+fields.total+' is suspiciously round.',
+      action:'Verify all line items add up correctly.'});
+
+  // Check 5 — High value
+  if (fields.total > 5000)
+    a.push({type:'HIGH_VALUE_INVOICE', severity:'MEDIUM',
+      detail:'Total $'+fields.total+' exceeds $5,000 threshold.',
+      action:'Escalate to senior AP manager for approval.'});
+
+  // Check 6 — Short payment terms
+  if (fields.terms !== 'N/A') {
+    const n = parseInt(fields.terms.replace(/\D/g,''));
+    if (n && n < 14)
+      a.push({type:'SHORT_PAYMENT_TERMS', severity:'MEDIUM',
+        detail:'Payment terms "'+fields.terms+'" shorter than standard Net 30.',
+        action:'Verify payment terms match your contract.'});
+  }
+
+  // Check 7 — Vague line items
+  for (const kw of ['misc ','miscellaneous','unspecified','admin fee','other charges'])
+    if (t.includes(kw)) {
+      a.push({type:'VAGUE_LINE_ITEM', severity:'MEDIUM',
+        detail:'Vague line item "'+kw.trim()+'" found with no clear description.',
+        action:'Request detailed itemized breakdown from vendor.'});
+      break;
+    }
+
+  // Check 8 — Possible duplicate
+  if (fields.invoice_number !== 'INV-UNKNOWN') {
+    const count = (t.match(new RegExp(fields.invoice_number.toLowerCase(),'g'))||[]).length;
+    if (count > 3)
+      a.push({type:'POSSIBLE_DUPLICATE', severity:'HIGH',
+        detail:'Invoice number appears '+count+' times — possible duplicate submission.',
+        action:'Verify this invoice has not already been paid.'});
+  }
+
+  // Check from Hindsight vendor history
+  if (fields._vendorDisputeCount && fields._vendorDisputeCount > 2) {
+    a.push({
+      type: 'HINDSIGHT_VENDOR_RISK', severity: 'HIGH',
+      detail: 'Hindsight memory shows ' + fields._vendorDisputeCount + ' past disputes for ' + fields.vendor + ' out of ' + fields._vendorMemoryCount + ' total records.',
+      action: 'HOLD — Vendor has high dispute history. Extra scrutiny required.'
+    });
+  }
+
+  return a;
+}
+
+function makeDecision(anomalies) {
+  const high = anomalies.filter(a=>a.severity==='HIGH');
+  const med  = anomalies.filter(a=>a.severity==='MEDIUM');
+  const low  = anomalies.filter(a=>a.severity==='LOW');
+  if (high.length) return {status:'REJECTED',risk:'HIGH',icon:'❌'};
+  if (med.length)  return {status:'HOLD FOR REVIEW',risk:'MEDIUM',icon:'⚠️'};
+  if (low.length)  return {status:'APPROVED WITH NOTE',risk:'LOW',icon:'✅⚠️'};
+  return               {status:'APPROVED',risk:'LOW',icon:'✅'};
+}
+
+function generateEmail(fields, anomalies, status) {
+  const v = fields.vendor;
+  const i = fields.invoice_number;
+  const t = '$'+fields.total.toLocaleString('en-US',{minimumFractionDigits:2});
+  if (status==='APPROVED'||status==='APPROVED WITH NOTE')
+    return 'To: finance@company.com\nSubject: Payment Approval — Invoice '+i+'\n\nDear Finance Team,\n\nInvoice '+i+' from '+v+' for '+t+' is verified.\nNo anomalies detected. Please approve payment.\n\nRegards,\nAP Intelligence Agent';
+  const issues = anomalies.map(a=>'- '+a.detail).join('\n');
+  return 'To: billing@'+v.toLowerCase().replace(/[^a-z0-9]/g,'')+'.com\nSubject: Invoice '+i+' — Action Required\n\nDear '+v+' Finance Team,\n\nWe reviewed invoice '+i+' for '+t+'.\n\nIssues found:\n'+issues+'\n\nPlease resubmit corrected invoice within 2 business days.\nPayment is on hold.\n\nRegards,\nAP Team';
+}
+
+function showResult(fields, anomalies, decision, email) {
+  document.getElementById('processing').style.display = 'none';
+  const box = document.getElementById('resultBox');
+  box.style.display = 'block';
+  box.className = 'result-box '+(decision.status==='APPROVED'||decision.status==='APPROVED WITH NOTE'?'approved':decision.status==='HOLD FOR REVIEW'?'hold':'rejected');
+  document.getElementById('resultTitle').textContent = decision.icon+' '+decision.status;
+  document.getElementById('dVendor').textContent = fields.vendor;
+  document.getElementById('dInv').textContent    = fields.invoice_number;
+  document.getElementById('dTotal').textContent  = '$'+fields.total.toLocaleString('en-US',{minimumFractionDigits:2});
+  document.getElementById('dPO').textContent     = fields.po_number||'NOT FOUND';
+  document.getElementById('dIssue').textContent  = fields.issue_date;
+  document.getElementById('dDue').textContent    = fields.due_date;
+  document.getElementById('dTax').textContent    = '$'+fields.tax.toFixed(2);
+  document.getElementById('dRisk').textContent   = decision.risk;
+  const al = document.getElementById('anomalyList');
+  al.innerHTML = anomalies.length===0
+    ? '<div class="anomaly-item LOW">✅ No anomalies detected — invoice is clean</div>'
+    : anomalies.map(a=>'<div class="anomaly-item '+a.severity+'"><strong>['+a.severity+'] '+a.type+'</strong><br>→ '+a.detail+'<br>✔ '+a.action+'</div>').join('');
+  document.getElementById('emailContent').textContent = email;
+  document.getElementById('emailSection').style.display = 'block';
+  const ar = document.getElementById('actionRow');
+  if (decision.status==='APPROVED'||decision.status==='APPROVED WITH NOTE')
+    ar.innerHTML = '<button class="action-btn btn-approve" onclick="approvePayment()">✅ Approve Payment</button><button class="action-btn btn-reset" onclick="resetUpload()">Upload Another</button>';
+  else
+    ar.innerHTML = '<button class="action-btn btn-dispute" onclick="sendEmail()">📧 Send to Vendor</button><button class="action-btn btn-reset" onclick="resetUpload()">Upload Another</button>';
+}
+
+function approvePayment() {
+  document.getElementById('successMsg').innerHTML = '<div class="success-msg">✅ Payment approved! Request sent to finance team.</div>';
+}
+function sendEmail() {
+  document.getElementById('successMsg').innerHTML = '<div class="success-msg">📧 Dispute email sent to vendor!</div>';
+}
+function resetUpload() {
+  document.getElementById('dropZone').style.display = 'block';
+  document.getElementById('processing').style.display = 'none';
+  document.getElementById('resultBox').style.display = 'none';
+  document.getElementById('fileInput').value = '';
+  document.getElementById('successMsg').innerHTML = '';
+}
+
+async function loadDashboard() {
+  try {
+    const r = await fetch('backend/ap_results.json');
+    dashData = await r.json();
+    const bc={"APPROVED":"ba","APPROVED WITH NOTE":"bn","HOLD FOR REVIEW":"bh","REJECTED":"br","HIGH":"rh","MEDIUM":"rm","LOW":"rl"};
+    document.getElementById('ca').textContent=dashData.filter(d=>d.status==='APPROVED').length;
+    document.getElementById('cn').textContent=dashData.filter(d=>d.status==='APPROVED WITH NOTE').length;
+    document.getElementById('ch').textContent=dashData.filter(d=>d.status==='HOLD FOR REVIEW').length;
+    document.getElementById('cr').textContent=dashData.filter(d=>d.status==='REJECTED').length;
+    document.getElementById('tb').innerHTML=dashData.map((r,i)=>`<tr>
+      <td>${i+1}</td><td>${r.file}</td><td><strong>${r.vendor}</strong></td>
+      <td>${r.invoice_number}</td>
+      <td><strong>$${Number(r.total).toLocaleString('en-US',{minimumFractionDigits:2})}</strong></td>
+      <td><span class="badge ${bc[r.status]}">${r.status}</span></td>
+      <td><span class="badge ${bc[r.risk]}">${r.risk}</span></td>
+      <td>${r.anomaly_count} — ${(r.anomaly_types||[]).slice(0,2).join(', ')||'None'}</td>
+      <td>${r.draft_email?`<button class="ebtn" onclick="se(${i})">View Draft</button>`:r.action||'—'}</td>
+    </tr>`).join('');
+  } catch(e) { console.log('Loading...'); }
+}
+function se(i) {
+  document.getElementById('ec').textContent=dashData[i].draft_email||'No email.';
+  document.getElementById('em').classList.add('open');
+}
+</script>
+</body>
+</html>
